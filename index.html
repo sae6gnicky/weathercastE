@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Forecast Broadcast (WeatherCast)</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; overflow: hidden; background-color: black; }
+        .text-shadow { text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Lucide React Icons Replaced with Independent SVG Components ---
+        const Icon = ({ children, size = 24, color = "currentColor", className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {children}
+            </svg>
+        );
+
+        const Video = (props) => <Icon {...props}><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></Icon>;
+        const Plus = (props) => <Icon {...props}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></Icon>;
+        const Play = (props) => <Icon {...props} fill={props.fill || "none"}><polygon points="5 3 19 12 5 21 5 3"></polygon></Icon>;
+        const ChevronRight = (props) => <Icon {...props}><polyline points="9 18 15 12 9 6"></polyline></Icon>;
+        const Droplets = (props) => <Icon {...props}><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7 2.99 7 2.99s-2.29 6.08-2.29 6.08C3.57 10 3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 1 14 8c2 2.5 2 4.5 2 4.5"/></Icon>;
+        const Wind = (props) => <Icon {...props}><path d="M12.8 19.6A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2"/><path d="M9.8 4.4A2 2 0 1 1 11 8H2"/></Icon>;
+        const Compass = (props) => <Icon {...props}><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></Icon>;
+        const Gauge = (props) => <Icon {...props}><path d="m12 14 4-4"/><path d="M3.34 16.66L2 18"/><path d="m22 18-1.34-1.34"/><path d="M22.7 10a10 10 0 1 0-15.39 10.14"/></Icon>;
+        const CloudSun = (props) => <Icon {...props}><path d="M12 2v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="M20 12h2"/><path d="m19.07 4.93-1.41 1.41"/><path d="M15.947 12.65a4 4 0 0 0-5.925-4.128"/><path d="M3 20a5 5 0 1 1 8.9-4H13a3 3 0 0 1 2 5.24"/></Icon>;
+        const CloudRain = (props) => <Icon {...props}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/></Icon>;
+        const CloudLightning = (props) => <Icon {...props}><path d="M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9"/><path d="m13 11-4 6h6l-4 6"/></Icon>;
+        const CloudSnow = (props) => <Icon {...props}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M8 15h.01"/><path d="M8 19h.01"/><path d="M12 17h.01"/><path d="M12 21h.01"/><path d="M16 15h.01"/><path d="M16 19h.01"/></Icon>;
+        const Sun = (props) => <Icon {...props}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></Icon>;
+        const Haze = (props) => <Icon {...props}><path d="M2 13h20"/><path d="M2 17h20"/><path d="M2 21h20"/><path d="M16 13a4 4 0 0 0-8 0"/><path d="m12 12-1.4-1.4"/></Icon>;
+
+        const App = () => {
+            const [step, setStep] = useState(1);
+            const [newsName, setNewsName] = useState('');
+            const [anchorName, setAnchorName] = useState('');
+            const [weatherCasterName, setWeatherCasterName] = useState('');
+            const [citizenNames, setCitizenNames] = useState(['']);
+            const [currentCitizenIndex, setCurrentCitizenIndex] = useState(0);
+            
+            const [weatherType, setWeatherType] = useState('sunny');
+            const [realtimeWeatherType, setRealtimeWeatherType] = useState('sunny'); // Real-time weather data state
+            const [isMediaPipeLoaded, setIsMediaPipeLoaded] = useState(false);
+            const [formError, setFormError] = useState('');
+            
+            const videoRef = useRef(null);
+            const canvasRef = useRef(null);
+            const cameraRef = useRef(null);
+            const selfieSegmentationRef = useRef(null);
+            const isProcessingRef = useRef(false);
+            const [showTitle, setShowTitle] = useState(false);
+            const [hasCameraPermission, setHasCameraPermission] = useState(false);
+
+            // Weather background map
+            const weatherBackgrounds = {
+                sunny: 'https://github.com/sae6gnicky/weathercastE/raw/main/sunny.png',
+                cloudy: 'https://github.com/sae6gnicky/weathercastE/raw/main/cloudy.png',
+                rainy: 'https://github.com/sae6gnicky/weathercastE/raw/main/rainy.png',
+                snowy: 'https://github.com/sae6gnicky/weathercastE/raw/main/snowy.png',
+                windy: 'https://github.com/sae6gnicky/weathercastE/raw/main/windy.png',
+                dust: 'https://github.com/sae6gnicky/weathercastE/raw/main/dust.png',
+                hot: 'https://github.com/sae6gnicky/weathercastE/raw/main/hot.png'
+            };
+
+            // Effect to fetch real-time weather information
+            useEffect(() => {
+                const fetchRealtimeWeather = async () => {
+                    try {
+                        // Fetch weather based on Seoul coordinates
+                        const weatherRes = await fetch('https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.9780&current_weather=true');
+                        const weatherData = await weatherRes.json();
+                        const code = weatherData.current_weather.weathercode;
+                        const temp = weatherData.current_weather.temperature;
+                        const wind = weatherData.current_weather.windspeed;
+
+                        // Fetch air quality information (Default handling on failure)
+                        let pm10 = 0;
+                        try {
+                            const airRes = await fetch('https://air-quality-api.open-meteo.com/v1/air-quality?latitude=37.5665&longitude=126.9780&current=pm10');
+                            const airData = await airRes.json();
+                            pm10 = airData.current.pm10;
+                        } catch(e) { console.warn("Failed to fetch fine dust information.", e); }
+
+                        let type = 'sunny';
+                        if (code === 0) type = 'sunny';
+                        else if (code >= 1 && code <= 3) type = 'cloudy';
+                        else if ([45, 48].includes(code)) type = 'cloudy'; // Fog
+                        else if (code >= 51 && code <= 67) type = 'rainy';
+                        else if (code >= 71 && code <= 86) type = 'snowy';
+                        else if (code >= 95 && code <= 99) type = 'rainy'; // Thunderstorm
+                        
+                        // Overwrite based on special weather warnings (Priority: Fine Dust < Wind < Heatwave)
+                        if (pm10 > 80) type = 'dust'; 
+                        if (wind >= 36) type = 'windy'; 
+                        if (temp >= 33) type = 'hot'; 
+                        
+                        setRealtimeWeatherType(type);
+                    } catch (err) {
+                        console.error('Failed to fetch real-time weather information.', err);
+                        setRealtimeWeatherType('sunny'); // Default to sunny on error
+                    }
+                };
+                fetchRealtimeWeather();
+            }, []);
+
+            // Helper function to render dates and text
+            const getDates = (type) => {
+                let baseDateStr;
+                if (type === 'realtime') {
+                    const now = new Date();
+                    baseDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                } else {
+                    const mappedDates = {
+                        'sunny': '2026-05-05',
+                        'cloudy': '2026-06-26',
+                        'rainy': '2026-06-26',
+                        'snowy': '2026-02-02',
+                        'windy': '2025-10-23',
+                        'dust': '2026-03-16',
+                        'hot': '2026-08-08'
+                    };
+                    baseDateStr = mappedDates[type] || '2026-05-05';
+                }
+                const todayDate = new Date(baseDateStr);
+                
+                const yesterday = new Date(todayDate);
+                yesterday.setDate(todayDate.getDate() - 1);
+                const tomorrow = new Date(todayDate);
+                tomorrow.setDate(todayDate.getDate() + 1);
+
+                return {
+                    yesterdayStr: `Yesterday (${yesterday.getMonth() + 1}/${yesterday.getDate()})`,
+                    todayStr: `Today (${todayDate.getMonth() + 1}/${todayDate.getDate()})`,
+                    tomorrowStr: `Tomorrow (${tomorrow.getMonth() + 1}/${tomorrow.getDate()})`
+                };
+            };
+
+            // Weather UI data helper function based on selected weather (Separated into Yesterday, Today, Tomorrow)
+            const getRenderWeatherData = () => {
+                const type = weatherType === 'realtime' ? realtimeWeatherType : weatherType;
+                const weatherForecasts = {
+                    sunny: {
+                        yesterday: { icon: CloudSun, mainTemp: '26°C', subTemp: '10°C' },
+                        today: { icon: Sun, mainTemp: '27°C', subTemp: '11°C', bg: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600&q=80' },
+                        tomorrow: { icon: Sun, mainTemp: '25°C', subTemp: '12°C' }
+                    },
+                    cloudy: {
+                        yesterday: { icon: Sun, mainTemp: '28°C', subTemp: '19°C' },
+                        today: { icon: CloudSun, mainTemp: '26°C', subTemp: '20°C', bg: 'https://images.unsplash.com/photo-1499956827185-0d63ee78a910?w=600&q=80' },
+                        tomorrow: { icon: CloudRain, mainTemp: '24°C', subTemp: '18°C' }
+                    },
+                    rainy: {
+                        yesterday: { icon: CloudSun, mainTemp: '29°C', subTemp: '21°C' },
+                        today: { icon: CloudRain, mainTemp: '25°C', subTemp: '20°C', bg: 'https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?w=600&q=80' },
+                        tomorrow: { icon: CloudRain, mainTemp: '26°C', subTemp: '20°C' }
+                    },
+                    snowy: {
+                        yesterday: { icon: CloudSun, mainTemp: '1°C', subTemp: '-7°C' },
+                        today: { icon: CloudSnow, mainTemp: '-2°C', subTemp: '-10°C', bg: 'https://images.unsplash.com/photo-1542601098-3adb3baeb1ec?w=600&q=80' },
+                        tomorrow: { icon: Sun, mainTemp: '0°C', subTemp: '-8°C' }
+                    },
+                    windy: {
+                        yesterday: { icon: CloudSun, mainTemp: '14°C', subTemp: '5°C' },
+                        today: { icon: Wind, mainTemp: '12°C', subTemp: '2°C', bg: 'https://images.unsplash.com/photo-1476820865390-c52aeebb9891?w=600&q=80' },
+                        tomorrow: { icon: Sun, mainTemp: '15°C', subTemp: '4°C' }
+                    },
+                    dust: {
+                        yesterday: { icon: Sun, mainTemp: '15°C', subTemp: '6°C' },
+                        today: { icon: Haze, mainTemp: '16°C', subTemp: '5°C', bg: 'https://images.unsplash.com/photo-1545134969-8debd725b733?w=600&q=80' },
+                        tomorrow: { icon: CloudSun, mainTemp: '17°C', subTemp: '7°C' }
+                    },
+                    hot: {
+                        yesterday: { icon: Sun, mainTemp: '33°C', subTemp: '25°C' },
+                        today: { icon: Sun, mainTemp: '35°C', subTemp: '26°C', bg: 'https://images.unsplash.com/photo-1504370805625-d32c54b16100?w=600&q=80' },
+                        tomorrow: { icon: CloudLightning, mainTemp: '34°C', subTemp: '25°C' }
+                    }
+                };
+                return weatherForecasts[type] || weatherForecasts.sunny;
+            };
+
+            const currentBgType = weatherType === 'realtime' ? realtimeWeatherType : weatherType;
+            const dates = getDates(weatherType);
+            const renderData = getRenderWeatherData();
+
+            useEffect(() => {
+                const requestCameraPermission = async () => {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        setHasCameraPermission(true);
+                        stream.getTracks().forEach(track => track.stop());
+                    } catch (err) {
+                        console.error("Camera permission denied:", err);
+                        setHasCameraPermission(false);
+                    }
+                };
+                requestCameraPermission();
+            }, []);
+
+            useEffect(() => {
+                const loadScript = (src) => {
+                    return new Promise((resolve, reject) => {
+                        if (document.querySelector(`script[src="${src}"]`)) {
+                            resolve();
+                            return;
+                        }
+                        const script = document.createElement('script');
+                        script.src = src;
+                        script.crossOrigin = 'anonymous';
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.body.appendChild(script);
+                    });
+                };
+
+                const initMediaPipe = async () => {
+                    try {
+                        await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
+                        await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js');
+                        
+                        if (window.SelfieSegmentation && window.Camera) {
+                            setIsMediaPipeLoaded(true);
+                        } else {
+                            console.error("Failed to load MediaPipe library.");
+                        }
+                    } catch (error) {
+                        console.error("Script load error:", error);
+                    }
+                };
+
+                initMediaPipe();
+                return () => {
+                    if (cameraRef.current) cameraRef.current.stop();
+                    if (selfieSegmentationRef.current) selfieSegmentationRef.current.close();
+                };
+            }, []);
+
+            const onResults = (results) => {
+                if (!canvasRef.current || !results || !results.image || !results.segmentationMask) return;
+                const canvasCtx = canvasRef.current.getContext('2d');
+                const canvas = canvasRef.current;
+                
+                if (results.image.width === 0 || results.image.height === 0) return;
+                
+                canvas.width = results.image.width;
+                canvas.height = results.image.height;
+
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+                canvasCtx.globalCompositeOperation = 'copy';
+                canvasCtx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+
+                canvasCtx.globalCompositeOperation = 'source-in';
+                canvasCtx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+                canvasCtx.restore();
+            };
+
+            const startCameraAndSegmentation = () => {
+                if (!isMediaPipeLoaded || !videoRef.current) return;
+                videoRef.current.width = 1280;
+                videoRef.current.height = 720;
+
+                if (cameraRef.current) {
+                    cameraRef.current.start();
+                    return;
+                }
+
+                selfieSegmentationRef.current = new window.SelfieSegmentation({locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`;
+                }});
+
+                selfieSegmentationRef.current.setOptions({ modelSelection: 1 });
+                selfieSegmentationRef.current.onResults(onResults);
+
+                cameraRef.current = new window.Camera(videoRef.current, {
+                    onFrame: async () => {
+                        if (isProcessingRef.current) return;
+                        if (videoRef.current && videoRef.current.readyState >= 2 && selfieSegmentationRef.current) {
+                            isProcessingRef.current = true;
+                            try {
+                                await selfieSegmentationRef.current.send({image: videoRef.current});
+                            } catch (err) {
+                                console.warn("MediaPipe Frame Error (Ignored):", err);
+                            } finally {
+                                isProcessingRef.current = false;
+                            }
+                        }
+                    },
+                    width: 1280,
+                    height: 720
+                });
+
+                cameraRef.current.start().catch(err => {
+                    console.error("Camera start error:", err);
+                });
+            };
+
+            const stopCamera = () => {
+                if (cameraRef.current) cameraRef.current.stop();
+            };
+
+            useEffect(() => {
+                if (step >= 3 && step <= 7) {
+                    startCameraAndSegmentation();
+                } else {
+                    stopCamera();
+                }
+                
+                if (step >= 3 && step <= 7 && isMediaPipeLoaded) {
+                     const timer = setTimeout(() => {
+                         startCameraAndSegmentation();
+                     }, 500);
+                     return () => clearTimeout(timer);
+                }
+            }, [step, isMediaPipeLoaded]);
+
+            const handleStartBroadcast = () => {
+                if (!newsName || !anchorName || !weatherCasterName || citizenNames.some(name => !name)) {
+                    setFormError('Please fill in all the fields.');
+                    return;
+                }
+                setFormError('');
+                
+                try {
+                    if (document.documentElement.requestFullscreen) {
+                        document.documentElement.requestFullscreen().catch(err => {
+                            console.warn("Fullscreen request denied:", err);
+                        });
+                    }
+                } catch (e) {
+                    console.warn("Fullscreen API Error", e);
+                }
+                setStep(2);
+            };
+
+            const handleAddCitizen = () => {
+                if (citizenNames.length < 3) setCitizenNames([...citizenNames, '']);
+            };
+
+            const handleCitizenNameChange = (index, value) => {
+                const newNames = [...citizenNames];
+                newNames[index] = value;
+                setCitizenNames(newNames);
+            };
+
+            const handleNext = () => {
+                if (step === 2) {
+                     setShowTitle(false);
+                     setStep(3);
+                } else if (step === 5) {
+                    if (currentCitizenIndex < citizenNames.length - 1) {
+                        setCurrentCitizenIndex(prev => prev + 1);
+                    } else {
+                        setStep(6);
+                    }
+                } else if (step === 7) {
+                    if (document.fullscreenElement) document.exitFullscreen().catch(console.error);
+                    setStep(1);
+                    setCurrentCitizenIndex(0);
+                } else {
+                    setStep(prev => prev + 1);
+                }
+            };
+
+            useEffect(() => {
+                let timer;
+                if (step === 2) {
+                    timer = setTimeout(() => setShowTitle(true), 3000);
+                } else {
+                    setShowTitle(false);
+                }
+                return () => clearTimeout(timer);
+            }, [step]);
+
+            return (
+                <div className="w-full h-screen font-sans overflow-hidden">
+                    <video ref={videoRef} className="hidden" playsInline autoPlay muted></video>
+
+                    {step === 1 && (
+                        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-200 flex items-center justify-center p-4">
+                            <div className="bg-white p-10 rounded-3xl shadow-2xl max-w-2xl w-full border-4 border-blue-100 relative max-h-screen overflow-y-auto">
+                                {!isMediaPipeLoaded && (
+                                    <div className="absolute top-2 right-2 text-xs text-red-500 font-bold bg-red-100 p-2 rounded">
+                                        System preparing... (Please wait a moment)
+                                    </div>
+                                )}
+                                {!hasCameraPermission && (
+                                    <div className="absolute top-12 right-2 text-xs text-white font-bold bg-red-500 p-2 rounded">
+                                        Please allow camera access!
+                                    </div>
+                                )}
+                                <h1 className="text-4xl font-extrabold text-blue-600 mb-8 text-center flex items-center justify-center gap-4">
+                                    <Video size={40} className="w-10 h-10" /> Weather Broadcast Preparation
+                                </h1>
+                                
+                                {formError && (
+                                    <div className="mb-6 p-4 bg-red-100 border-l-4 border-red-500 text-red-700 font-bold rounded">
+                                        {formError}
+                                    </div>
+                                )}
+                                
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-gray-700 font-bold mb-2">News Name</label>
+                                        <input type="text" placeholder="e.g., Daily News" value={newsName} onChange={e => setNewsName(e.target.value)} 
+                                            className="w-full p-4 border-2 border-blue-200 rounded-xl focus:outline-none focus:border-blue-500 text-xl font-bold" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-gray-700 font-bold mb-2">News Anchor</label>
+                                            <input type="text" placeholder="Enter name" value={anchorName} onChange={e => setAnchorName(e.target.value)} 
+                                                className="w-full p-4 border-2 border-blue-200 rounded-xl focus:outline-none focus:border-blue-500 text-xl" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-700 font-bold mb-2">Weather Caster</label>
+                                            <input type="text" placeholder="Enter name" value={weatherCasterName} onChange={e => setWeatherCasterName(e.target.value)} 
+                                                className="w-full p-4 border-2 border-blue-200 rounded-xl focus:outline-none focus:border-blue-500 text-xl" />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-700 font-bold mb-2 flex items-center justify-between">
+                                            <span>Citizens for Interview (Max 3)</span>
+                                            {citizenNames.length < 3 && (
+                                                <button onClick={handleAddCitizen} className="text-blue-500 hover:text-blue-700 flex items-center text-sm bg-blue-50 px-3 py-1 rounded-full">
+                                                    <Plus size={16} className="mr-1" /> Add Person
+                                                </button>
+                                            )}
+                                        </label>
+                                        <div className="space-y-3">
+                                            {citizenNames.map((name, index) => (
+                                                <input key={index} type="text" placeholder={`Citizen ${index + 1} Name`} value={name} onChange={e => handleCitizenNameChange(index, e.target.value)} 
+                                                    className="w-full p-4 border-2 border-blue-200 rounded-xl focus:outline-none focus:border-blue-500 text-xl" />
+                                            ))}
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-gray-700 font-bold mb-2">Today's Weather (Interview Background)</label>
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {[
+                                                { id: 'sunny', label: 'Sunny' },
+                                                { id: 'cloudy', label: 'Cloudy' },
+                                                { id: 'rainy', label: 'Rainy' },
+                                                { id: 'snowy', label: 'Snowy' },
+                                                { id: 'windy', label: 'Windy' },
+                                                { id: 'dust', label: 'Fine Dust' },
+                                                { id: 'hot', label: 'Heatwave' },
+                                                { id: 'realtime', label: 'Real-time' }
+                                            ].map(weather => (
+                                                <button 
+                                                    key={weather.id}
+                                                    onClick={() => setWeatherType(weather.id)}
+                                                    className={`py-3 rounded-xl border-2 font-bold text-lg transition-colors ${weatherType === weather.id ? 'bg-blue-500 text-white border-blue-500' : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'}`}
+                                                >
+                                                    {weather.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <button 
+                                        onClick={handleStartBroadcast} 
+                                        disabled={!isMediaPipeLoaded || !hasCameraPermission}
+                                        className={`w-full mt-8 p-5 text-white rounded-2xl font-extrabold text-2xl transition shadow-lg flex items-center justify-center gap-3 ${isMediaPipeLoaded && hasCameraPermission ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}>
+                                        <Play fill="currentColor" size={28} /> {isMediaPipeLoaded && hasCameraPermission ? 'Start Broadcast' : (hasCameraPermission ? 'Preparing...' : 'Camera Permission Required')}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {step === 2 && (
+                        <div className="relative w-full h-screen bg-black">
+                            <video 
+                                className="w-full h-full object-cover" 
+                                src="https://github.com/sae6gnicky/weathercastE/raw/main/opening.mp4" 
+                                autoPlay 
+                                onEnded={handleNext} 
+                            />
+                            {showTitle && (
+                                <div className="absolute bottom-[10%] left-0 w-full flex justify-center z-10 transition-opacity duration-1000">
+                                    <h1 className="text-white text-6xl md:text-8xl font-black tracking-widest drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
+                                        {newsName}
+                                    </h1>
+                                </div>
+                            )}
+                            <button onClick={handleNext} className="absolute top-6 right-6 text-white/50 hover:text-white bg-black/30 px-4 py-2 rounded-full z-20">Skip</button>
+                        </div>
+                    )}
+
+                    {(step === 3 || step === 7) && (
+                        <div className="relative w-full h-screen bg-black">
+                            <img src="https://github.com/sae6gnicky/weathercastE/raw/main/bground.png" alt="Newsroom Background" className="absolute inset-0 w-full h-full object-cover" />
+                            
+                            <div className="absolute bottom-0 left-0 w-full h-[95%] flex items-end justify-center z-10 pointer-events-none">
+                                <canvas ref={canvasRef} className="w-full h-full object-contain object-bottom -scale-x-100" />
+                            </div>
+                            
+                            <img src="https://github.com/sae6gnicky/weathercastE/raw/main/titleE.png" alt="News Title" className="absolute inset-0 w-full h-full z-20 object-cover pointer-events-none" />
+                            
+                            {step === 3 && (
+                                <div className="absolute bottom-12 left-1/2 transform -translate-x-1/2 bg-blue-900/90 text-white px-8 py-4 rounded-2xl border-l-8 border-yellow-400 z-50 shadow-2xl">
+                                    <p className="text-[35px] leading-tight font-extrabold">{anchorName}</p>
+                                </div>
+                            )}
+
+                            <button onClick={handleNext} className="absolute top-1/2 right-6 transform -translate-y-1/2 bg-white/20 hover:bg-white/40 p-5 rounded-full backdrop-blur-md z-50 transition cursor-pointer pointer-events-auto">
+                                <ChevronRight size={50} color="white" />
+                            </button>
+                        </div>
+                    )}
+
+                    {(step === 4 || step === 6) && (
+                        <div className="relative w-full h-screen bg-blue-500">
+                            <img src="https://github.com/sae6gnicky/weathercastE/raw/main/2.png" alt="Weather Background" className="absolute inset-0 w-full h-full object-cover" />
+                            
+                            <div className="absolute top-8 right-12 z-20 flex space-x-8 text-white bg-black/20 p-5 rounded-3xl backdrop-blur-md border border-white/20">
+                                <div className="flex flex-col items-center"><Droplets size={28} className="mb-2 text-blue-200" /> <span className="font-bold text-lg">40%</span></div>
+                                <div className="flex flex-col items-center"><Wind size={28} className="mb-2 text-gray-200" /> <span className="font-bold text-lg">24 KM/H</span></div>
+                                <div className="flex flex-col items-center"><Compass size={28} className="mb-2 text-gray-200" /> <span className="font-bold text-lg">WEST</span></div>
+                                <div className="flex flex-col items-center"><Gauge size={28} className="mb-2 text-gray-200" /> <span className="font-bold text-lg">1023 MB</span></div>
+                            </div>
+
+                            <div className="absolute top-40 right-12 z-20 w-[55%] grid grid-cols-3 gap-6">
+                                <div className="bg-gradient-to-b from-blue-300/90 to-blue-500/90 rounded-3xl overflow-hidden shadow-2xl flex flex-col backdrop-blur-sm border border-white/30">
+                                    <div className="bg-blue-200/40 py-4 text-center text-2xl font-extrabold text-white">{dates.yesterdayStr}</div>
+                                    <div className="flex-1 p-6 flex flex-col items-center justify-center">
+                                        <renderData.yesterday.icon size={90} color="white" className="mb-6 drop-shadow-md" />
+                                        <span className="text-6xl font-black text-white">{renderData.yesterday.mainTemp}</span>
+                                        <span className="text-3xl text-white/80 mt-3 font-bold">{renderData.yesterday.subTemp}</span>
+                                    </div>
+                                    <div className="h-32 bg-[url('https://images.unsplash.com/photo-1472824606709-0d1cf571c356?w=600&q=80')] bg-cover bg-center opacity-80"></div>
+                                </div>
+
+                                <div className="bg-gradient-to-b from-blue-400/95 to-blue-600/95 rounded-3xl overflow-hidden shadow-2xl flex flex-col backdrop-blur-sm transform scale-105 border-4 border-white/40 z-10">
+                                    <div className="bg-blue-300/40 py-4 text-center text-3xl font-extrabold text-white text-shadow">{dates.todayStr}</div>
+                                    <div className="flex-1 p-6 flex flex-col items-center justify-center">
+                                        <renderData.today.icon size={110} color="white" className="mb-6 drop-shadow-lg" />
+                                        <span className="text-7xl font-black text-white">{renderData.today.mainTemp}</span>
+                                        <span className="text-4xl text-white/80 mt-3 font-bold">{renderData.today.subTemp}</span>
+                                    </div>
+                                    <div className="h-36 bg-cover bg-center opacity-90" style={{backgroundImage: `url('${renderData.today.bg}')`}}></div>
+                                </div>
+
+                                <div className="bg-gradient-to-b from-blue-300/90 to-blue-500/90 rounded-3xl overflow-hidden shadow-2xl flex flex-col backdrop-blur-sm border border-white/30">
+                                    <div className="bg-blue-200/40 py-4 text-center text-2xl font-extrabold text-white">{dates.tomorrowStr}</div>
+                                    <div className="flex-1 p-6 flex flex-col items-center justify-center">
+                                        <renderData.tomorrow.icon size={90} color="white" className="mb-6 drop-shadow-md" />
+                                        <span className="text-6xl font-black text-white">{renderData.tomorrow.mainTemp}</span>
+                                        <span className="text-3xl text-white/80 mt-3 font-bold">{renderData.tomorrow.subTemp}</span>
+                                    </div>
+                                    <div className="h-32 bg-[url('https://images.unsplash.com/photo-1605727216801-e27ce1d0ce30?w=600&q=80')] bg-cover bg-center opacity-80"></div>
+                                </div>
+                            </div>
+
+                            <div className="absolute bottom-12 left-12 bg-green-600/90 text-white px-8 py-4 rounded-2xl border-l-8 border-green-300 z-50 shadow-2xl">
+                                 <p className="text-[35px] leading-tight font-extrabold">{weatherCasterName}</p>
+                            </div>
+
+                            <div className="absolute bottom-0 left-10 h-[80%] z-40 flex items-end pointer-events-none">
+                                <canvas ref={canvasRef} className="h-full object-contain aspect-video -scale-x-100" />
+                            </div>
+
+                            <button onClick={handleNext} className="absolute top-1/2 right-6 transform -translate-y-1/2 bg-white/20 hover:bg-white/40 p-5 rounded-full backdrop-blur-md z-50 transition cursor-pointer pointer-events-auto">
+                                <ChevronRight size={50} color="white" />
+                            </button>
+                        </div>
+                    )}
+
+                    {step === 5 && (
+                        <div className="relative w-full h-screen bg-black">
+                            <img src={weatherBackgrounds[currentBgType]} alt="Outdoor Background" className="absolute inset-0 w-full h-full object-cover opacity-90" />
+                            
+                            <div className="absolute bottom-0 left-0 w-full h-[95%] flex items-end justify-center z-10 pointer-events-none">
+                                <canvas ref={canvasRef} className="w-full h-full object-contain object-bottom -scale-x-100" />
+                            </div>
+
+                            <div className="absolute bottom-12 left-12 bg-red-600/90 text-white px-8 py-4 rounded-2xl border-l-8 border-red-300 z-50 shadow-2xl">
+                                <p className="text-xl text-red-200 font-bold mb-1">Citizen Interview</p>
+                                <p className="text-[35px] leading-tight font-extrabold">{citizenNames[currentCitizenIndex]}</p>
+                            </div>
+
+                            <button onClick={handleNext} className="absolute top-1/2 right-6 transform -translate-y-1/2 bg-white/20 hover:bg-white/40 p-5 rounded-full backdrop-blur-md z-50 transition cursor-pointer pointer-events-auto">
+                                <ChevronRight size={50} color="white" />
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
